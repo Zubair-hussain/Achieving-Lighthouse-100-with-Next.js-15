@@ -1,0 +1,1369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Achieving Lighthouse 100 with Next.js 15 | Zubair Hussain</title>
+<meta name="description" content="A deep dive into Server Components, image optimization, and bundle splitting strategies that push Lighthouse scores to perfection.">
+<meta name="author" content="Zubair Hussain">
+<meta property="og:title" content="Achieving Lighthouse 100 with Next.js 15">
+<meta property="og:description" content="Server Components, image optimization, and bundle splitting strategies that push Lighthouse scores to perfection.">
+<meta property="og:type" content="article">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #0f0f0f;
+    --ink-2: #3a3a3a;
+    --ink-3: #6b6b6b;
+    --paper: #fafaf8;
+    --surface: #f2f1ed;
+    --accent: #00c896;
+    --accent-dim: #e0f9f2;
+    --accent-dark: #009a74;
+    --warn: #f97316;
+    --warn-dim: #fff3e8;
+    --code-bg: #111827;
+    --code-text: #e5e7eb;
+    --score-green: #22c55e;
+    --score-bg: #0f172a;
+    --border: #e5e3dc;
+    --border-strong: #ccc9be;
+    --serif: 'Syne', sans-serif;
+    --body: 'DM Sans', sans-serif;
+    --mono: 'DM Mono', monospace;
+    --max: 780px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: var(--body);
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.75;
+    font-size: 17px;
+    font-weight: 300;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── PROGRESS BAR ── */
+  #progress {
+    position: fixed; top: 0; left: 0; height: 3px;
+    background: linear-gradient(90deg, var(--accent), #3b82f6);
+    width: 0%; z-index: 100; transition: width 0.1s linear;
+  }
+
+  /* ── HERO ── */
+  .hero {
+    background: var(--score-bg);
+    color: #fff;
+    padding: 80px 24px 96px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse 900px 500px at 50% 120%, rgba(0,200,150,0.18) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .hero-inner {
+    max-width: var(--max);
+    margin: 0 auto;
+    position: relative;
+  }
+
+  .hero-tag {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: rgba(0,200,150,0.12); border: 1px solid rgba(0,200,150,0.3);
+    color: var(--accent); font-family: var(--mono); font-size: 12px;
+    padding: 5px 14px; border-radius: 100px; letter-spacing: 0.05em;
+    margin-bottom: 28px;
+  }
+
+  .hero-tag span {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.8)} }
+
+  .hero h1 {
+    font-family: var(--serif);
+    font-size: clamp(36px, 6vw, 62px);
+    font-weight: 800;
+    line-height: 1.06;
+    letter-spacing: -0.03em;
+    color: #fff;
+    margin-bottom: 24px;
+    max-width: 680px;
+  }
+
+  .hero h1 em {
+    font-style: normal;
+    color: var(--accent);
+  }
+
+  .hero-sub {
+    font-size: 18px;
+    font-weight: 300;
+    color: rgba(255,255,255,0.65);
+    max-width: 560px;
+    line-height: 1.65;
+    margin-bottom: 40px;
+  }
+
+  .hero-meta {
+    display: flex; align-items: center; gap: 20px;
+    flex-wrap: wrap;
+  }
+
+  .avatar {
+    width: 40px; height: 40px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), #3b82f6);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--serif); font-weight: 700; font-size: 14px;
+    color: #fff; flex-shrink: 0;
+  }
+
+  .hero-author {
+    display: flex; flex-direction: column; gap: 2px;
+  }
+
+  .hero-author strong {
+    font-size: 14px; font-weight: 500; color: #fff;
+  }
+
+  .hero-author a {
+    font-size: 13px; color: var(--accent);
+    text-decoration: none; font-family: var(--mono);
+  }
+
+  .hero-author a:hover { text-decoration: underline; }
+
+  .hero-stats {
+    margin-left: auto;
+    display: flex; gap: 24px;
+  }
+
+  .hero-stat { text-align: center; }
+  .hero-stat .num { font-family: var(--mono); font-size: 22px; font-weight: 500; color: var(--accent); }
+  .hero-stat .lbl { font-size: 11px; color: rgba(255,255,255,0.45); letter-spacing: 0.06em; text-transform: uppercase; }
+
+  /* ── SCORE DISPLAY ── */
+  .score-bar {
+    max-width: var(--max);
+    margin: -32px auto 0;
+    padding: 0 24px;
+    position: relative; z-index: 10;
+  }
+
+  .score-panel {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 28px 32px;
+    display: flex; gap: 0; align-items: stretch;
+    box-shadow: 0 4px 32px rgba(0,0,0,0.08);
+    overflow: hidden;
+  }
+
+  .score-item {
+    flex: 1; text-align: center; padding: 8px 16px;
+    position: relative;
+  }
+
+  .score-item + .score-item::before {
+    content: ''; position: absolute; left: 0; top: 10%; height: 80%;
+    width: 1px; background: var(--border);
+  }
+
+  .score-ring {
+    width: 64px; height: 64px; margin: 0 auto 10px;
+    position: relative;
+  }
+
+  .score-ring svg { transform: rotate(-90deg); }
+
+  .score-ring .ring-track { fill: none; stroke: #e5e7eb; stroke-width: 5; }
+  .score-ring .ring-fill  { fill: none; stroke-width: 5; stroke-linecap: round; transition: stroke-dashoffset 1.2s cubic-bezier(0.4,0,0.2,1); }
+
+  .score-ring .ring-num {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono); font-size: 18px; font-weight: 500;
+    transform: none;
+  }
+
+  .score-label {
+    font-size: 12px; color: var(--ink-3); font-weight: 400;
+    letter-spacing: 0.04em; text-transform: uppercase;
+  }
+
+  /* ── ARTICLE LAYOUT ── */
+  article {
+    max-width: var(--max);
+    margin: 0 auto;
+    padding: 64px 24px 100px;
+  }
+
+  /* ── TOC ── */
+  .toc {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px 28px;
+    margin-bottom: 56px;
+  }
+
+  .toc-title {
+    font-family: var(--mono);
+    font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--ink-3); margin-bottom: 14px;
+  }
+
+  .toc ol {
+    counter-reset: toc;
+    list-style: none; padding: 0;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+
+  .toc li { counter-increment: toc; display: flex; align-items: baseline; gap: 10px; }
+
+  .toc li::before {
+    content: counter(toc, decimal-leading-zero);
+    font-family: var(--mono); font-size: 11px;
+    color: var(--ink-3); flex-shrink: 0;
+  }
+
+  .toc a {
+    font-size: 14px; color: var(--ink-2); text-decoration: none;
+    font-weight: 400; transition: color 0.15s;
+    border-bottom: 1px solid transparent;
+  }
+
+  .toc a:hover { color: var(--accent-dark); border-bottom-color: var(--accent); }
+
+  /* ── TYPOGRAPHY ── */
+  h2 {
+    font-family: var(--serif);
+    font-size: clamp(24px, 3.5vw, 32px);
+    font-weight: 700;
+    color: var(--ink);
+    margin: 64px 0 20px;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+  }
+
+  h3 {
+    font-family: var(--serif);
+    font-size: 20px; font-weight: 600;
+    color: var(--ink); margin: 40px 0 14px;
+    letter-spacing: -0.01em;
+  }
+
+  p { margin-bottom: 22px; color: var(--ink-2); }
+  p strong { color: var(--ink); font-weight: 500; }
+
+  /* ── LEAD ── */
+  .lead {
+    font-size: 20px; font-weight: 300;
+    color: var(--ink-2); line-height: 1.65;
+    border-left: 3px solid var(--accent);
+    padding-left: 20px; margin-bottom: 48px;
+  }
+
+  /* ── CALLOUT ── */
+  .callout {
+    border-radius: 12px; padding: 20px 24px;
+    margin: 32px 0; display: flex; gap: 16px;
+  }
+
+  .callout-tip { background: var(--accent-dim); border: 1px solid rgba(0,200,150,0.25); }
+  .callout-warn { background: var(--warn-dim); border: 1px solid rgba(249,115,22,0.25); }
+
+  .callout-icon { font-size: 18px; flex-shrink: 0; margin-top: 2px; }
+  .callout-body { font-size: 15px; color: var(--ink-2); line-height: 1.6; }
+  .callout-body strong { color: var(--ink); }
+
+  /* ── CODE ── */
+  pre {
+    background: var(--code-bg);
+    border-radius: 12px; overflow-x: auto;
+    margin: 28px 0; font-size: 14px; line-height: 1.65;
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .code-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 18px 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+  }
+
+  .code-lang {
+    font-family: var(--mono); font-size: 11px;
+    color: rgba(255,255,255,0.3); letter-spacing: 0.08em; text-transform: uppercase;
+  }
+
+  .code-file {
+    font-family: var(--mono); font-size: 12px; color: rgba(255,255,255,0.4);
+  }
+
+  pre code {
+    display: block; padding: 18px 20px;
+    font-family: var(--mono);
+    color: var(--code-text);
+    tab-size: 2;
+  }
+
+  .kw { color: #c792ea; }
+  .fn { color: #82aaff; }
+  .str { color: #c3e88d; }
+  .cm { color: #546e7a; font-style: italic; }
+  .attr { color: #ffcb6b; }
+  .num { color: #f78c6c; }
+  .tag { color: #f07178; }
+  .prop { color: #89ddff; }
+
+  code:not(pre code) {
+    font-family: var(--mono); font-size: 0.87em;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 5px; padding: 2px 7px; color: var(--ink);
+  }
+
+  /* ── METRIC VISUAL ── */
+  .metric-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 16px; margin: 32px 0;
+  }
+
+  .metric-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+
+  .metric-card .m-val {
+    font-family: var(--mono); font-size: 28px; font-weight: 500;
+    line-height: 1;
+  }
+
+  .metric-card .m-val.green { color: var(--score-green); }
+  .metric-card .m-val.amber { color: #f59e0b; }
+  .metric-card .m-val.blue  { color: #3b82f6; }
+
+  .metric-card .m-label { font-size: 13px; color: var(--ink-3); }
+  .metric-card .m-desc  { font-size: 12px; color: var(--ink-3); margin-top: 4px; line-height: 1.5; }
+
+  /* ── DIFF TABLE ── */
+  .diff-table {
+    width: 100%; border-collapse: collapse; margin: 28px 0; font-size: 14px;
+  }
+
+  .diff-table th {
+    text-align: left; font-family: var(--mono); font-size: 11px;
+    letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3);
+    padding: 10px 14px; border-bottom: 1px solid var(--border-strong);
+  }
+
+  .diff-table td {
+    padding: 11px 14px; border-bottom: 1px solid var(--border);
+    color: var(--ink-2);
+  }
+
+  .diff-table tr:last-child td { border-bottom: none; }
+  .diff-table tr:nth-child(even) td { background: var(--surface); }
+
+  .badge {
+    display: inline-flex; align-items: center;
+    font-family: var(--mono); font-size: 11px; font-weight: 500;
+    border-radius: 6px; padding: 3px 8px;
+  }
+  .badge-green { background: #dcfce7; color: #166534; }
+  .badge-red   { background: #fee2e2; color: #991b1b; }
+  .badge-blue  { background: #dbeafe; color: #1e40af; }
+
+  /* ── SEPARATOR ── */
+  .sep {
+    height: 1px; background: var(--border);
+    margin: 48px 0; position: relative;
+  }
+  .sep::after {
+    content: '§'; position: absolute; left: 50%; top: 50%;
+    transform: translate(-50%,-50%);
+    background: var(--paper); padding: 0 12px;
+    color: var(--border-strong); font-size: 14px;
+  }
+
+  /* ── WATERFALL VIZ ── */
+  .waterfall {
+    background: var(--code-bg); border-radius: 14px;
+    padding: 24px 20px; margin: 28px 0;
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .wf-title {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em;
+    text-transform: uppercase; color: rgba(255,255,255,0.3);
+    margin-bottom: 18px;
+  }
+
+  .wf-row {
+    display: grid; grid-template-columns: 160px 1fr 50px;
+    gap: 12px; align-items: center; margin-bottom: 10px;
+  }
+
+  .wf-name { font-family: var(--mono); font-size: 12px; color: rgba(255,255,255,0.5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .wf-bar-wrap { height: 8px; background: rgba(255,255,255,0.06); border-radius: 4px; overflow: hidden; }
+
+  .wf-bar {
+    height: 100%; border-radius: 4px;
+    transition: width 1s ease;
+  }
+
+  .wf-time { font-family: var(--mono); font-size: 11px; color: rgba(255,255,255,0.35); text-align: right; }
+
+  /* ── ARCHITECTURE SVG ── */
+  .arch-wrap {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 16px; padding: 28px 20px; margin: 32px 0;
+    overflow: hidden;
+  }
+
+  .arch-label {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--ink-3); margin-bottom: 20px;
+  }
+
+  /* ── FOOTER / AUTHOR ── */
+  .author-card {
+    background: var(--score-bg); border-radius: 16px;
+    padding: 32px; margin-top: 72px; margin-bottom: 40px;
+    display: flex; gap: 20px; align-items: flex-start;
+  }
+
+  .author-avatar {
+    width: 56px; height: 56px; border-radius: 50%; flex-shrink: 0;
+    background: linear-gradient(135deg, var(--accent) 0%, #3b82f6 100%);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--serif); font-weight: 800; font-size: 20px; color: #fff;
+  }
+
+  .author-info h4 {
+    font-family: var(--serif); font-weight: 700; font-size: 18px;
+    color: #fff; margin-bottom: 4px;
+  }
+
+  .author-info p {
+    font-size: 14px; color: rgba(255,255,255,0.5); line-height: 1.6;
+    margin-bottom: 14px;
+  }
+
+  .author-info a {
+    display: inline-flex; align-items: center; gap: 6px;
+    color: var(--accent); font-family: var(--mono); font-size: 13px;
+    text-decoration: none;
+  }
+
+  .author-info a:hover { text-decoration: underline; }
+
+  /* ── INLINE SVG DIAGRAM ── */
+  .diagram-wrap {
+    margin: 32px 0; overflow-x: auto;
+  }
+
+  /* ── CHECKLIST ── */
+  .checklist {
+    list-style: none; padding: 0; margin: 24px 0;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+
+  .checklist li {
+    display: flex; gap: 12px; align-items: flex-start;
+    font-size: 15px; color: var(--ink-2);
+  }
+
+  .check-icon {
+    width: 20px; height: 20px; border-radius: 50%;
+    background: var(--accent-dim); border: 1.5px solid var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; margin-top: 2px;
+  }
+
+  .check-icon svg { width: 10px; height: 10px; }
+
+  @media (max-width: 600px) {
+    .metric-grid { grid-template-columns: repeat(2, 1fr); }
+    .hero-stats { display: none; }
+    .score-panel { flex-wrap: wrap; gap: 16px; }
+    .wf-row { grid-template-columns: 100px 1fr 45px; }
+    .author-card { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+
+<!-- ── HERO ── -->
+<header class="hero">
+  <div class="hero-inner">
+    <div class="hero-tag">
+      <span></span>
+      Performance Engineering · Next.js 15
+    </div>
+
+    <h1>Achieving Lighthouse <em>100</em><br>with Next.js 15</h1>
+
+    <p class="hero-sub">
+      A deep dive into Server Components, image optimization, and bundle splitting strategies that push Lighthouse scores to perfection.
+    </p>
+
+    <div class="hero-meta">
+      <div class="avatar">ZH</div>
+      <div class="hero-author">
+        <strong>Zubair Hussain</strong>
+        <a href="mailto:zovatotech@gmail.com">zovatotech@gmail.com</a>
+      </div>
+      <div class="hero-stats">
+        <div class="hero-stat">
+          <div class="num">18</div>
+          <div class="lbl">min read</div>
+        </div>
+        <div class="hero-stat">
+          <div class="num">2025</div>
+          <div class="lbl">updated</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ── SCORE PANEL ── -->
+<div class="score-bar">
+  <div class="score-panel">
+    <!-- Performance -->
+    <div class="score-item">
+      <div class="score-ring">
+        <svg width="64" height="64" viewBox="0 0 64 64">
+          <circle class="ring-track" cx="32" cy="32" r="27"/>
+          <circle class="ring-fill" id="r1" cx="32" cy="32" r="27"
+            stroke="#22c55e"
+            stroke-dasharray="169.6"
+            stroke-dashoffset="169.6"/>
+        </svg>
+        <div class="ring-num" style="color:#22c55e">100</div>
+      </div>
+      <div class="score-label">Performance</div>
+    </div>
+    <!-- Accessibility -->
+    <div class="score-item">
+      <div class="score-ring">
+        <svg width="64" height="64" viewBox="0 0 64 64">
+          <circle class="ring-track" cx="32" cy="32" r="27"/>
+          <circle class="ring-fill" id="r2" cx="32" cy="32" r="27"
+            stroke="#22c55e"
+            stroke-dasharray="169.6"
+            stroke-dashoffset="169.6"/>
+        </svg>
+        <div class="ring-num" style="color:#22c55e">100</div>
+      </div>
+      <div class="score-label">Accessibility</div>
+    </div>
+    <!-- Best Practices -->
+    <div class="score-item">
+      <div class="score-ring">
+        <svg width="64" height="64" viewBox="0 0 64 64">
+          <circle class="ring-track" cx="32" cy="32" r="27"/>
+          <circle class="ring-fill" id="r3" cx="32" cy="32" r="27"
+            stroke="#22c55e"
+            stroke-dasharray="169.6"
+            stroke-dashoffset="169.6"/>
+        </svg>
+        <div class="ring-num" style="color:#22c55e">100</div>
+      </div>
+      <div class="score-label">Best Practices</div>
+    </div>
+    <!-- SEO -->
+    <div class="score-item">
+      <div class="score-ring">
+        <svg width="64" height="64" viewBox="0 0 64 64">
+          <circle class="ring-track" cx="32" cy="32" r="27"/>
+          <circle class="ring-fill" id="r4" cx="32" cy="32" r="27"
+            stroke="#22c55e"
+            stroke-dasharray="169.6"
+            stroke-dashoffset="169.6"/>
+        </svg>
+        <div class="ring-num" style="color:#22c55e">100</div>
+      </div>
+      <div class="score-label">SEO</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── ARTICLE ── -->
+<article>
+
+  <!-- TOC -->
+  <nav class="toc" aria-label="Table of contents">
+    <div class="toc-title">In this article</div>
+    <ol>
+      <li><a href="#why-it-matters">Why 100/100 actually matters</a></li>
+      <li><a href="#server-components">Server Components: The foundation of speed</a></li>
+      <li><a href="#image-optimization">Image optimization done right</a></li>
+      <li><a href="#bundle-splitting">Bundle splitting strategies</a></li>
+      <li><a href="#core-web-vitals">Core Web Vitals in depth</a></li>
+      <li><a href="#font-loading">Font loading without the FOUT</a></li>
+      <li><a href="#caching">Caching layers and ISR</a></li>
+      <li><a href="#checklist">Final audit checklist</a></li>
+    </ol>
+  </nav>
+
+  <p class="lead">
+    A perfect Lighthouse score isn't a vanity metric — it's proof that your site respects every user's time, bandwidth, and device. With Next.js 15, the App Router and React Server Components give you the raw material. But raw material alone doesn't score 100. This guide is the blueprint.
+  </p>
+
+  <!-- ═══ SECTION 1 ═══ -->
+  <h2 id="why-it-matters">Why 100/100 actually matters</h2>
+
+  <p>
+    In 2021 Google made Core Web Vitals a direct ranking signal. Since then, countless studies have confirmed the commercial impact: <strong>every 100ms reduction in page load time correlates with a ~1% revenue lift</strong> for e-commerce sites. A Lighthouse 100 means your LCP is under 2.5s, your CLS is under 0.1, and your INP (Interaction to Next Paint, which replaced FID in 2024) is under 200ms.
+  </p>
+
+  <div class="metric-grid">
+    <div class="metric-card">
+      <div class="m-val green">&lt; 2.5s</div>
+      <div class="m-label">LCP target</div>
+      <div class="m-desc">Largest Contentful Paint. The largest visible element must load fast.</div>
+    </div>
+    <div class="metric-card">
+      <div class="m-val green">&lt; 0.1</div>
+      <div class="m-label">CLS target</div>
+      <div class="m-desc">Cumulative Layout Shift. No elements jump around after render.</div>
+    </div>
+    <div class="metric-card">
+      <div class="m-val green">&lt; 200ms</div>
+      <div class="m-label">INP target</div>
+      <div class="m-desc">Interaction to Next Paint. UI responds instantly to every input.</div>
+    </div>
+  </div>
+
+  <p>
+    What changed with <strong>Next.js 15</strong> is that the compiler itself leans harder into static analysis, partial prerendering (PPR), and granular hydration. You get more performance headroom than any previous version — but you still have to wire it up correctly.
+  </p>
+
+  <div class="sep"></div>
+
+  <!-- ═══ SECTION 2 ═══ -->
+  <h2 id="server-components">Server Components: The foundation of speed</h2>
+
+  <p>
+    React Server Components (RSC) are the single biggest performance lever in Next.js 15. They render on the server, send zero JavaScript to the client, and eliminate the waterfall of client-side data fetching that used to be unavoidable.
+  </p>
+
+  <h3>The component boundary model</h3>
+
+  <p>
+    Every component in the App Router is a Server Component by default. The only time you add <code>'use client'</code> is when you genuinely need interactivity — <code>useState</code>, <code>useEffect</code>, browser APIs, or event handlers. The discipline here is ruthless: push <code>'use client'</code> as far down the tree as possible.
+  </p>
+
+  <!-- Architecture diagram -->
+  <div class="arch-wrap">
+    <div class="arch-label">RSC boundary architecture</div>
+    <svg width="100%" viewBox="0 0 680 320" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </marker>
+      </defs>
+
+      <!-- Page (server) -->
+      <rect x="20" y="20" width="640" height="280" rx="16" fill="#f0fdf4" stroke="#86efac" stroke-width="1" stroke-dasharray="6 3"/>
+      <text x="36" y="46" font-family="'DM Mono',monospace" font-size="11" fill="#166534" letter-spacing="0.08em">SERVER — zero JS sent to browser</text>
+
+      <!-- Layout box -->
+      <rect x="44" y="60" width="592" height="68" rx="10" fill="#dcfce7" stroke="#4ade80" stroke-width="0.5"/>
+      <text x="60" y="84" font-family="'DM Mono',monospace" font-size="13" font-weight="500" fill="#14532d">layout.tsx</text>
+      <text x="60" y="103" font-family="'DM Mono',monospace" font-size="11" fill="#166534">Server Component · async · fetches data at build time / per request</text>
+
+      <!-- Three children -->
+      <rect x="44" y="150" width="180" height="130" rx="10" fill="#dcfce7" stroke="#4ade80" stroke-width="0.5"/>
+      <text x="60" y="175" font-family="'DM Mono',monospace" font-size="13" font-weight="500" fill="#14532d">page.tsx</text>
+      <text x="60" y="193" font-family="'DM Mono',monospace" font-size="10" fill="#166534">Server Component</text>
+      <text x="60" y="209" font-family="'DM Mono',monospace" font-size="10" fill="#166534">Suspense boundary</text>
+      <text x="60" y="225" font-family="'DM Mono',monospace" font-size="10" fill="#166534">→ no hydration cost</text>
+
+      <!-- Middle: client island -->
+      <rect x="254" y="150" width="180" height="130" rx="10" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.5"/>
+      <text x="270" y="175" font-family="'DM Mono',monospace" font-size="13" font-weight="500" fill="#1e3a8a">Counter.tsx</text>
+      <text x="270" y="193" font-family="'DM Mono',monospace" font-size="10" fill="#1d4ed8">'use client'</text>
+      <text x="270" y="209" font-family="'DM Mono',monospace" font-size="10" fill="#1d4ed8">useState · useEffect</text>
+      <text x="270" y="225" font-family="'DM Mono',monospace" font-size="10" fill="#1d4ed8">→ hydrated island</text>
+
+      <!-- Right -->
+      <rect x="464" y="150" width="180" height="130" rx="10" fill="#dcfce7" stroke="#4ade80" stroke-width="0.5"/>
+      <text x="480" y="175" font-family="'DM Mono',monospace" font-size="13" font-weight="500" fill="#14532d">Footer.tsx</text>
+      <text x="480" y="193" font-family="'DM Mono',monospace" font-size="10" fill="#166534">Server Component</text>
+      <text x="480" y="209" font-family="'DM Mono',monospace" font-size="10" fill="#166534">Static HTML</text>
+      <text x="480" y="225" font-family="'DM Mono',monospace" font-size="10" fill="#166534">→ zero JS bundle</text>
+
+      <!-- Arrows from layout to children -->
+      <line x1="134" y1="128" x2="134" y2="148" stroke="#4ade80" stroke-width="1.5" marker-end="url(#arr)" fill="none"/>
+      <line x1="344" y1="128" x2="344" y2="148" stroke="#93c5fd" stroke-width="1.5" marker-end="url(#arr)" fill="none"/>
+      <line x1="554" y1="128" x2="554" y2="148" stroke="#4ade80" stroke-width="1.5" marker-end="url(#arr)" fill="none"/>
+    </svg>
+  </div>
+
+  <p>
+    Notice that <code>Counter.tsx</code> is an isolated island — its JavaScript ships to the browser, but <code>layout.tsx</code>, <code>page.tsx</code>, and <code>Footer.tsx</code> ship nothing. This is <strong>selective hydration</strong> at the component level, and it's the reason RSC-heavy apps routinely have First Input Delay of zero.
+  </p>
+
+  <h3>Async data fetching in Server Components</h3>
+
+  <p>
+    Because Server Components are async by default, you can await data directly in the component body with zero client-side loading states for the initial render:
+  </p>
+
+  <div>
+    <div class="code-header" style="background:#111827;border-radius:12px 12px 0 0">
+      <span class="code-lang">TypeScript</span>
+      <span class="code-file">app/products/page.tsx</span>
+    </div>
+    <pre style="margin-top:0;border-top-left-radius:0;border-top-right-radius:0"><code><span class="cm">// No 'use client' → this is a Server Component</span>
+<span class="kw">import</span> { <span class="fn">ProductCard</span> } <span class="kw">from</span> <span class="str">'@/components/ProductCard'</span>
+<span class="kw">import</span> { <span class="fn">getProducts</span> } <span class="kw">from</span> <span class="str">'@/lib/api'</span>
+
+<span class="cm">// next: { revalidate } makes this ISR — best of both worlds</span>
+<span class="kw">async function</span> <span class="fn">getProductsWithCache</span>() {
+  <span class="kw">const</span> res = <span class="kw">await</span> <span class="fn">fetch</span>(<span class="str">'https://api.example.com/products'</span>, {
+    next: { revalidate: <span class="num">3600</span> } <span class="cm">// ISR: revalidate every hour</span>
+  })
+  <span class="kw">return</span> res.<span class="fn">json</span>()
+}
+
+<span class="kw">export default async function</span> <span class="fn">ProductsPage</span>() {
+  <span class="cm">// Data is fetched server-side — no useEffect, no loading spinner</span>
+  <span class="kw">const</span> products = <span class="kw">await</span> <span class="fn">getProductsWithCache</span>()
+
+  <span class="kw">return</span> (
+    &lt;<span class="tag">section</span>&gt;
+      {products.<span class="fn">map</span>((p) =&gt; (
+        &lt;<span class="tag">ProductCard</span> <span class="attr">key</span>={p.id} <span class="attr">product</span>={p} /&gt;
+      ))}
+    &lt;/<span class="tag">section</span>&gt;
+  )
+}</code></pre>
+  </div>
+
+  <div class="callout callout-tip">
+    <div class="callout-icon">💡</div>
+    <div class="callout-body">
+      <strong>Deduplication is free.</strong> Next.js 15 automatically deduplicates identical <code>fetch()</code> calls within a single render pass. If three Server Components each call the same endpoint, only one HTTP request fires. No need for a global data layer or React Query on the server.
+    </div>
+  </div>
+
+  <div class="sep"></div>
+
+  <!-- ═══ SECTION 3 ═══ -->
+  <h2 id="image-optimization">Image optimization done right</h2>
+
+  <p>
+    Images are consistently the #1 LCP killer. The Next.js <code>&lt;Image&gt;</code> component handles WebP/AVIF conversion, responsive <code>srcset</code>, and lazy loading automatically — but most developers leave significant performance on the table by not configuring it correctly.
+  </p>
+
+  <h3>The LCP image must be preloaded</h3>
+
+  <p>
+    Your hero image is almost certainly the LCP element. If you lazy-load it (the default), your LCP score collapses. The fix is explicit priority:
+  </p>
+
+  <div>
+    <div class="code-header" style="background:#111827;border-radius:12px 12px 0 0">
+      <span class="code-lang">JSX</span>
+      <span class="code-file">app/(home)/HeroBanner.tsx</span>
+    </div>
+    <pre style="margin-top:0;border-top-left-radius:0;border-top-right-radius:0"><code><span class="kw">import</span> <span class="fn">Image</span> <span class="kw">from</span> <span class="str">'next/image'</span>
+
+<span class="kw">export function</span> <span class="fn">HeroBanner</span>() {
+  <span class="kw">return</span> (
+    &lt;<span class="tag">div</span> <span class="attr">className</span>=<span class="str">"relative h-[560px]"</span>&gt;
+      &lt;<span class="tag">Image</span>
+        <span class="attr">src</span>=<span class="str">"/hero.jpg"</span>
+        <span class="attr">alt</span>=<span class="str">"Hero banner showing our product"</span>
+        <span class="attr">fill</span>
+        <span class="attr">sizes</span>=<span class="str">"100vw"</span>
+        <span class="attr">priority</span>          <span class="cm">{/* ← injects &lt;link rel="preload"&gt; */}</span>
+        <span class="attr">quality</span>={<span class="num">85</span>}
+        <span class="attr">placeholder</span>=<span class="str">"blur"</span>
+        <span class="attr">blurDataURL</span>=<span class="str">"data:image/webp;base64,..."</span>
+      /&gt;
+    &lt;/<span class="tag">div</span>&gt;
+  )
+}</code></pre>
+  </div>
+
+  <div class="callout callout-warn">
+    <div class="callout-icon">⚠️</div>
+    <div class="callout-body">
+      <strong>The <code>sizes</code> attribute is not optional.</strong> Without it, the browser assumes a 100vw image on every breakpoint, downloads a 2560px image on a 375px phone, and tanks your score. Always write an accurate <code>sizes</code> value — this single change can save 200–400KB per page view on mobile.
+    </div>
+  </div>
+
+  <h3>AVIF vs WebP: which format wins?</h3>
+
+  <table class="diff-table">
+    <thead>
+      <tr>
+        <th>Format</th>
+        <th>Browser support</th>
+        <th>Compression vs JPEG</th>
+        <th>Encode speed</th>
+        <th>Recommendation</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>AVIF</strong></td>
+        <td>93% global (2025)</td>
+        <td><span class="badge badge-green">~50% smaller</span></td>
+        <td>Slow</td>
+        <td><span class="badge badge-blue">Enable first</span></td>
+      </tr>
+      <tr>
+        <td><strong>WebP</strong></td>
+        <td>97% global</td>
+        <td><span class="badge badge-green">~30% smaller</span></td>
+        <td>Fast</td>
+        <td>Automatic fallback</td>
+      </tr>
+      <tr>
+        <td><strong>JPEG</strong></td>
+        <td>100%</td>
+        <td>Baseline</td>
+        <td>Fastest</td>
+        <td><span class="badge badge-red">Legacy fallback</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div>
+    <div class="code-header" style="background:#111827;border-radius:12px 12px 0 0">
+      <span class="code-lang">TypeScript</span>
+      <span class="code-file">next.config.ts</span>
+    </div>
+    <pre style="margin-top:0;border-top-left-radius:0;border-top-right-radius:0"><code><span class="kw">import</span> <span class="kw">type</span> { <span class="fn">NextConfig</span> } <span class="kw">from</span> <span class="str">'next'</span>
+
+<span class="kw">const</span> config: <span class="fn">NextConfig</span> = {
+  images: {
+    <span class="cm">// AVIF first — 50% smaller than JPEG for photos</span>
+    formats: [<span class="str">'image/avif'</span>, <span class="str">'image/webp'</span>],
+
+    <span class="cm">// Define all srcset breakpoints you actually use</span>
+    deviceSizes: [<span class="num">375</span>, <span class="num">640</span>, <span class="num">750</span>, <span class="num">828</span>, <span class="num">1080</span>, <span class="num">1200</span>, <span class="num">1920</span>],
+    imageSizes: [<span class="num">16</span>, <span class="num">32</span>, <span class="num">48</span>, <span class="num">64</span>, <span class="num">96</span>, <span class="num">128</span>, <span class="num">256</span>],
+
+    <span class="cm">// Minimize layout shift with explicit aspect ratios</span>
+    minimumCacheTTL: <span class="num">86400</span>, <span class="cm">// 24h CDN cache</span>
+  },
+  <span class="cm">// PPR: partial prerender static shells with dynamic holes</span>
+  experimental: {
+    ppr: <span class="str">'incremental'</span>,
+  },
+}
+
+<span class="kw">export default</span> config</code></pre>
+  </div>
+
+  <div class="sep"></div>
+
+  <!-- ═══ SECTION 4 ═══ -->
+  <h2 id="bundle-splitting">Bundle splitting strategies</h2>
+
+  <p>
+    JavaScript is the most expensive asset on the web — byte for byte, it costs 10–30× more CPU time than equivalent bytes of image data. Every kilobyte of JS you eliminate from the critical path is worth more than a proportional image saving.
+  </p>
+
+  <h3>Visualizing your bundle before you optimize</h3>
+
+  <!-- Waterfall visualization -->
+  <div class="waterfall">
+    <div class="wf-title">Typical unoptimized Next.js bundle (before)</div>
+
+    <div class="wf-row">
+      <div class="wf-name">framework.js</div>
+      <div class="wf-bar-wrap"><div class="wf-bar" style="width:90%;background:#3b82f6"></div></div>
+      <div class="wf-time">142kb</div>
+    </div>
+    <div class="wf-row">
+      <div class="wf-name">main.js</div>
+      <div class="wf-bar-wrap"><div class="wf-bar" style="width:75%;background:#f59e0b"></div></div>
+      <div class="wf-time">118kb</div>
+    </div>
+    <div class="wf-row">
+      <div class="wf-name">pages/_app.js</div>
+      <div class="wf-bar-wrap"><div class="wf-bar" style="width:50%;background:#f59e0b"></div></div>
+      <div class="wf-time">79kb</div>
+    </div>
+    <div class="wf-row">
+      <div class="wf-name">recharts.js</div>
+      <div class="wf-bar-wrap"><div class="wf-bar" style="width:95%;background:#ef4444"></div></div>
+      <div class="wf-time">149kb</div>
+    </div>
+    <div class="wf-row">
+      <div class="wf-name">date-fns.js</div>
+      <div class="wf-bar-wrap"><div class="wf-bar" style="width:40%;background:#ef4444"></div></div>
+      <div class="wf-time">63kb</div>
+    </div>
+
+    <div style="margin-top:18px;border-top:1px solid rgba(255,255,255,0.08);padding-top:14px">
+      <div class="wf-row">
+        <div class="wf-name" style="color:rgba(255,255,255,0.7);font-weight:500">Total (gzip)</div>
+        <div class="wf-bar-wrap"><div class="wf-bar" style="width:100%;background:rgba(239,68,68,0.6)"></div></div>
+        <div class="wf-time" style="color:rgba(255,255,255,0.7)">551kb</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="waterfall">
+    <div class="wf-title">After RSC + dynamic imports + tree shaking (after)</div>
+
+    <div class="wf-row">
+      <div class="wf-name">framework.js</div>
+      <div class="wf-bar-wrap"><div class="wf-bar" style="width:57%;background:#22c55e"></div></div>
+      <div class="wf-time">90kb</div>
+    </div>
+    <div class="wf-row">
+      <div class="wf-name">main.js</div>
+      <div class="wf-bar-wrap"><div class="wf-bar" style="width:23%;background:#22c55e"></div></div>
+      <div class="wf-time">36kb</div>
+    </div>
+    <div class="wf-row">
+      <div class="wf-name">recharts (lazy)</div>
+      <div class="wf-bar-wrap"><div class="wf-bar" style="width:95%;background:#94a3b8"></div></div>
+      <div class="wf-time">149kb</div>
+    </div>
+    <div class="wf-row">
+      <div class="wf-name" style="color:rgba(255,255,255,0.3)">date-fns (server)</div>
+      <div class="wf-bar-wrap"><div class="wf-bar" style="width:1%;background:#22c55e"></div></div>
+      <div class="wf-time" style="color:#22c55e">0kb</div>
+    </div>
+
+    <div style="margin-top:18px;border-top:1px solid rgba(255,255,255,0.08);padding-top:14px">
+      <div class="wf-row">
+        <div class="wf-name" style="color:rgba(255,255,255,0.7);font-weight:500">Critical path</div>
+        <div class="wf-bar-wrap"><div class="wf-bar" style="width:48%;background:rgba(34,197,94,0.7)"></div></div>
+        <div class="wf-time" style="color:#22c55e">126kb</div>
+      </div>
+    </div>
+  </div>
+
+  <p>
+    The waterfall above is real-world. Moving <code>date-fns</code> formatting to a Server Component alone eliminated 63kb from the browser bundle. The trick is recognizing which libraries are <em>data transformation utilities</em> (never need the DOM, belong on the server) versus <em>UI libraries</em> (must run in the browser).
+  </p>
+
+  <h3>Dynamic imports and lazy loading</h3>
+
+  <div>
+    <div class="code-header" style="background:#111827;border-radius:12px 12px 0 0">
+      <span class="code-lang">TypeScript</span>
+      <span class="code-file">app/dashboard/Charts.tsx</span>
+    </div>
+    <pre style="margin-top:0;border-top-left-radius:0;border-top-right-radius:0"><code><span class="str">'use client'</span>
+
+<span class="kw">import</span> <span class="fn">dynamic</span> <span class="kw">from</span> <span class="str">'next/dynamic'</span>
+
+<span class="cm">// Recharts is 149kb — load only when the chart is visible</span>
+<span class="kw">const</span> <span class="fn">RevenueChart</span> = <span class="fn">dynamic</span>(
+  () =&gt; <span class="kw">import</span>(<span class="str">'@/components/RevenueChart'</span>),
+  {
+    loading: () =&gt; &lt;<span class="tag">ChartSkeleton</span> /&gt;,
+    ssr: <span class="kw">false</span>, <span class="cm">// Recharts uses window — skip SSR</span>
+  }
+)
+
+<span class="cm">// Heavy modal — only load JS when user clicks</span>
+<span class="kw">const</span> <span class="fn">VideoModal</span> = <span class="fn">dynamic</span>(
+  () =&gt; <span class="kw">import</span>(<span class="str">'@/components/VideoModal'</span>)
+)
+
+<span class="kw">export function</span> <span class="fn">Dashboard</span>() {
+  <span class="kw">return</span> (
+    &lt;<span class="tag">main</span>&gt;
+      &lt;<span class="tag">RevenueChart</span> /&gt; <span class="cm">{/* 149kb deferred until visible */}</span>
+    &lt;/<span class="tag">main</span>&gt;
+  )
+}</code></pre>
+  </div>
+
+  <h3>Analysing what ships to the browser</h3>
+
+  <p>
+    Never optimize blind. Run <code>@next/bundle-analyzer</code> to get a visual breakdown of every module in your output. The command is simple:
+  </p>
+
+  <pre><code><span class="cm"># Install</span>
+npm install @next/bundle-analyzer
+
+<span class="cm"># Run analysis (outputs an HTML treemap)</span>
+ANALYZE=true npm run build</code></pre>
+
+  <p>
+    Look for three categories of waste: <strong>duplicated packages</strong> (two versions of the same lib), <strong>large polyfills</strong> that modern browsers don't need, and <strong>client components that import server-only code</strong> — this last one is the most common mistake and ships Node.js utilities to the browser.
+  </p>
+
+  <div class="sep"></div>
+
+  <!-- ═══ SECTION 5 ═══ -->
+  <h2 id="core-web-vitals">Core Web Vitals in depth</h2>
+
+  <h3>Fixing Cumulative Layout Shift (CLS)</h3>
+
+  <p>
+    Layout shift is frustrating to debug because it happens during loading, not after. The most common causes are images without explicit dimensions, fonts swapping in late, and dynamically injected banners or ad slots. Fix each class:
+  </p>
+
+  <div>
+    <div class="code-header" style="background:#111827;border-radius:12px 12px 0 0">
+      <span class="code-lang">CSS / TSX</span>
+      <span class="code-file">Layout shift remediation</span>
+    </div>
+    <pre style="margin-top:0;border-top-left-radius:0;border-top-right-radius:0"><code><span class="cm">/* 1. Always reserve space for images */</span>
+<span class="prop">.hero-img</span> {
+  aspect-ratio: <span class="num">16</span> / <span class="num">9</span>;   <span class="cm">/* locks layout before image loads */</span>
+  width: <span class="num">100</span>%;
+  object-fit: cover;
+}
+
+<span class="cm">/* 2. Reserve space for ads / embeds */</span>
+<span class="prop">.ad-slot</span> {
+  min-height: <span class="num">90</span>px;        <span class="cm">/* leaderboard standard */</span>
+  contain: layout;          <span class="cm">/* isolate from rest of page */</span>
+}
+
+<span class="cm">/* 3. Skeleton-based loading states */</span>
+<span class="prop">.skeleton</span> {
+  background: <span class="fn">linear-gradient</span>(<span class="num">90</span>deg, #f0f0f0 <span class="num">25</span>%, #e0e0e0 <span class="num">50</span>%, #f0f0f0 <span class="num">75</span>%);
+  background-size: <span class="num">200</span>% <span class="num">100</span>%;
+  animation: shimmer <span class="num">1.5</span>s infinite;
+}</code></pre>
+  </div>
+
+  <h3>Optimising Interaction to Next Paint (INP)</h3>
+
+  <p>
+    INP measures the worst interaction latency across the user's entire session. The main culprit is <strong>long tasks on the main thread</strong>. In Next.js, this usually means:
+  </p>
+
+  <ul style="margin: 16px 0 24px; padding-left: 24px; color: var(--ink-2); display:flex;flex-direction:column;gap:10px;">
+    <li><strong>Hydration cost</strong> from over-using <code>'use client'</code> — push interactivity to leaf components</li>
+    <li><strong>Heavy event handlers</strong> — debounce search inputs, use <code>startTransition</code> for non-urgent updates</li>
+    <li><strong>Synchronous data processing</strong> in click handlers — move expensive computation to <code>useDeferredValue</code> or a Web Worker</li>
+  </ul>
+
+  <div>
+    <div class="code-header" style="background:#111827;border-radius:12px 12px 0 0">
+      <span class="code-lang">TypeScript</span>
+      <span class="code-file">Keeping the main thread free</span>
+    </div>
+    <pre style="margin-top:0;border-top-left-radius:0;border-top-right-radius:0"><code><span class="str">'use client'</span>
+<span class="kw">import</span> { <span class="fn">useState</span>, <span class="fn">useTransition</span>, <span class="fn">useDeferredValue</span> } <span class="kw">from</span> <span class="str">'react'</span>
+
+<span class="kw">export function</span> <span class="fn">SearchResults</span>({ items }: { items: <span class="fn">Item</span>[] }) {
+  <span class="kw">const</span> [query, setQuery] = <span class="fn">useState</span>(<span class="str">''</span>)
+  <span class="kw">const</span> [isPending, startTransition] = <span class="fn">useTransition</span>()
+  
+  <span class="cm">// Deferred: React can deprioritize re-rendering this</span>
+  <span class="kw">const</span> deferred = <span class="fn">useDeferredValue</span>(query)
+  
+  <span class="cm">// Expensive filter runs at lower priority — input stays responsive</span>
+  <span class="kw">const</span> filtered = items.<span class="fn">filter</span>(i =&gt;
+    i.name.<span class="fn">toLowerCase</span>().<span class="fn">includes</span>(deferred.<span class="fn">toLowerCase</span>())
+  )
+
+  <span class="kw">return</span> (
+    &lt;<span class="tag">div</span>&gt;
+      &lt;<span class="tag">input</span>
+        <span class="attr">value</span>={query}
+        <span class="attr">onChange</span>={e =&gt; {
+          <span class="cm">// Mark the state update as non-urgent</span>
+          <span class="fn">startTransition</span>(() =&gt; <span class="fn">setQuery</span>(e.target.value))
+        }}
+      /&gt;
+      {filtered.<span class="fn">map</span>(i =&gt; &lt;<span class="tag">ResultRow</span> <span class="attr">key</span>={i.id} <span class="attr">item</span>={i} /&gt;)}
+    &lt;/<span class="tag">div</span>&gt;
+  )
+}</code></pre>
+  </div>
+
+  <div class="sep"></div>
+
+  <!-- ═══ SECTION 6 ═══ -->
+  <h2 id="font-loading">Font loading without the FOUT</h2>
+
+  <p>
+    Flash of Unstyled Text (FOUT) tanks your CLS score and looks unprofessional. Next.js 15 ships a first-class font system that eliminates it:
+  </p>
+
+  <div>
+    <div class="code-header" style="background:#111827;border-radius:12px 12px 0 0">
+      <span class="code-lang">TypeScript</span>
+      <span class="code-file">app/layout.tsx</span>
+    </div>
+    <pre style="margin-top:0;border-top-left-radius:0;border-top-right-radius:0"><code><span class="kw">import</span> { <span class="fn">Inter</span>, <span class="fn">Syne</span> } <span class="kw">from</span> <span class="str">'next/font/google'</span>
+
+<span class="cm">// next/font automatically:
+// · Downloads fonts at build time (no runtime Google Fonts request)
+// · Self-hosts from your own domain → no third-party connection
+// · Generates size-adjust CSS to avoid FOUT
+// · Inlines critical font face declarations</span>
+
+<span class="kw">const</span> syne = <span class="fn">Syne</span>({
+  subsets: [<span class="str">'latin'</span>],
+  weight: [<span class="str">'400'</span>, <span class="str">'700'</span>, <span class="str">'800'</span>],
+  variable: <span class="str">'--font-syne'</span>,
+  display: <span class="str">'swap'</span>,
+  preload: <span class="kw">true</span>,
+})
+
+<span class="kw">const</span> inter = <span class="fn">Inter</span>({
+  subsets: [<span class="str">'latin'</span>],
+  variable: <span class="str">'--font-inter'</span>,
+  display: <span class="str">'swap'</span>,
+  <span class="cm">// Only load the weights you actually use!</span>
+  weight: [<span class="str">'300'</span>, <span class="str">'400'</span>, <span class="str">'500'</span>],
+})
+
+<span class="kw">export default function</span> <span class="fn">RootLayout</span>({ children }) {
+  <span class="kw">return</span> (
+    &lt;<span class="tag">html</span> <span class="attr">lang</span>=<span class="str">"en"</span> <span class="attr">className</span>={`${syne.variable} ${inter.variable}`}&gt;
+      &lt;<span class="tag">body</span>&gt;{children}&lt;/<span class="tag">body</span>&gt;
+    &lt;/<span class="tag">html</span>&gt;
+  )
+}</code></pre>
+  </div>
+
+  <div class="callout callout-tip">
+    <div class="callout-icon">💡</div>
+    <div class="callout-body">
+      <strong>One typeface per weight subset.</strong> Each additional weight in <code>next/font</code> is a separate HTTP/2 push. Loading Inter 300 + 400 + 500 + 600 + 700 is five requests where two would do. Audit your CSS: every unique <code>font-weight</code> value you use must have a corresponding subset loaded — and every subset you load must be used.
+    </div>
+  </div>
+
+  <div class="sep"></div>
+
+  <!-- ═══ SECTION 7 ═══ -->
+  <h2 id="caching">Caching layers and ISR</h2>
+
+  <p>
+    Next.js 15 gives you four distinct caching layers. Understanding which layer to engage for which data pattern is the difference between a 30-point performance spread:
+  </p>
+
+  <div>
+    <div class="arch-wrap">
+      <div class="arch-label">Next.js 15 caching layers</div>
+      <svg width="100%" viewBox="0 0 680 260" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arr2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </marker>
+        </defs>
+
+        <!-- Browser -->
+        <rect x="20" y="20" width="140" height="220" rx="12" fill="#f0fdf4" stroke="#86efac" stroke-width="0.5"/>
+        <text x="90" y="50" text-anchor="middle" font-family="'DM Mono',monospace" font-size="12" font-weight="500" fill="#166534">Browser</text>
+        <rect x="36" y="64" width="108" height="40" rx="6" fill="#dcfce7" stroke="#4ade80" stroke-width="0.5"/>
+        <text x="90" y="86" text-anchor="middle" font-family="'DM Mono',monospace" font-size="10" fill="#166534">HTTP Cache</text>
+        <text x="90" y="100" text-anchor="middle" font-family="'DM Mono',monospace" font-size="9" fill="#15803d">Cache-Control</text>
+
+        <!-- Router Cache -->
+        <rect x="36" y="118" width="108" height="40" rx="6" fill="#eff6ff" stroke="#93c5fd" stroke-width="0.5"/>
+        <text x="90" y="140" text-anchor="middle" font-family="'DM Mono',monospace" font-size="10" fill="#1e40af">Router Cache</text>
+        <text x="90" y="154" text-anchor="middle" font-family="'DM Mono',monospace" font-size="9" fill="#1d4ed8">Client-side RSC</text>
+
+        <!-- Edge -->
+        <rect x="196" y="20" width="140" height="220" rx="12" fill="#eff6ff" stroke="#93c5fd" stroke-width="0.5"/>
+        <text x="266" y="50" text-anchor="middle" font-family="'DM Mono',monospace" font-size="12" font-weight="500" fill="#1e40af">Edge / CDN</text>
+        <rect x="212" y="64" width="108" height="40" rx="6" fill="#dbeafe" stroke="#60a5fa" stroke-width="0.5"/>
+        <text x="266" y="86" text-anchor="middle" font-family="'DM Mono',monospace" font-size="10" fill="#1e3a8a">Full Route Cache</text>
+        <text x="266" y="100" text-anchor="middle" font-family="'DM Mono',monospace" font-size="9" fill="#1d4ed8">Static HTML + RSC</text>
+        <rect x="212" y="118" width="108" height="40" rx="6" fill="#dbeafe" stroke="#60a5fa" stroke-width="0.5"/>
+        <text x="266" y="140" text-anchor="middle" font-family="'DM Mono',monospace" font-size="10" fill="#1e3a8a">ISR Stale Cache</text>
+        <text x="266" y="154" text-anchor="middle" font-family="'DM Mono',monospace" font-size="9" fill="#1d4ed8">revalidate: N</text>
+
+        <!-- Server -->
+        <rect x="372" y="20" width="140" height="220" rx="12" fill="#fafafa" stroke="#d4d4d8" stroke-width="0.5"/>
+        <text x="442" y="50" text-anchor="middle" font-family="'DM Mono',monospace" font-size="12" font-weight="500" fill="#3f3f46">Next.js Server</text>
+        <rect x="388" y="64" width="108" height="40" rx="6" fill="#f4f4f5" stroke="#a1a1aa" stroke-width="0.5"/>
+        <text x="442" y="86" text-anchor="middle" font-family="'DM Mono',monospace" font-size="10" fill="#52525b">Data Cache</text>
+        <text x="442" y="100" text-anchor="middle" font-family="'DM Mono',monospace" font-size="9" fill="#71717a">fetch() memoize</text>
+        <rect x="388" y="118" width="108" height="40" rx="6" fill="#f4f4f5" stroke="#a1a1aa" stroke-width="0.5"/>
+        <text x="442" y="140" text-anchor="middle" font-family="'DM Mono',monospace" font-size="10" fill="#52525b">Request Memo</text>
+        <text x="442" y="154" text-anchor="middle" font-family="'DM Mono',monospace" font-size="9" fill="#71717a">Per render dedup</text>
+
+        <!-- External -->
+        <rect x="548" y="20" width="112" height="220" rx="12" fill="#fdf4ff" stroke="#d8b4fe" stroke-width="0.5"/>
+        <text x="604" y="50" text-anchor="middle" font-family="'DM Mono',monospace" font-size="12" font-weight="500" fill="#6b21a8">APIs / DB</text>
+        <rect x="562" y="64" width="84" height="40" rx="6" fill="#f3e8ff" stroke="#c084fc" stroke-width="0.5"/>
+        <text x="604" y="86" text-anchor="middle" font-family="'DM Mono',monospace" font-size="10" fill="#7e22ce">Origin</text>
+        <text x="604" y="100" text-anchor="middle" font-family="'DM Mono',monospace" font-size="9" fill="#9333ea">Cold data</text>
+
+        <!-- Arrows -->
+        <line x1="160" y1="140" x2="194" y2="140" stroke="#93c5fd" stroke-width="1.5" marker-end="url(#arr2)" fill="none"/>
+        <line x1="336" y1="140" x2="370" y2="140" stroke="#a1a1aa" stroke-width="1.5" marker-end="url(#arr2)" fill="none"/>
+        <line x1="500" y1="140" x2="546" y2="140" stroke="#c084fc" stroke-width="1.5" marker-end="url(#arr2)" fill="none"/>
+
+        <!-- Labels below arrows -->
+        <text x="177" y="135" text-anchor="middle" font-family="'DM Mono',monospace" font-size="9" fill="#60a5fa">miss</text>
+        <text x="353" y="135" text-anchor="middle" font-family="'DM Mono',monospace" font-size="9" fill="#a1a1aa">miss</text>
+        <text x="523" y="135" text-anchor="middle" font-family="'DM Mono',monospace" font-size="9" fill="#a855f7">miss</text>
+
+        <!-- Legend -->
+        <rect x="20" y="254" width="10" height="10" rx="2" fill="#dcfce7" stroke="#4ade80" stroke-width="0.5"/>
+        <text x="36" y="263" font-family="'DM Mono',monospace" font-size="9" fill="#52525b">Free (no latency)</text>
+        <rect x="180" y="254" width="10" height="10" rx="2" fill="#dbeafe" stroke="#60a5fa" stroke-width="0.5"/>
+        <text x="196" y="263" font-family="'DM Mono',monospace" font-size="9" fill="#52525b">Fast (edge hit)</text>
+        <rect x="340" y="254" width="10" height="10" rx="2" fill="#f4f4f5" stroke="#a1a1aa" stroke-width="0.5"/>
+        <text x="356" y="263" font-family="'DM Mono',monospace" font-size="9" fill="#52525b">Medium (server)</text>
+        <rect x="500" y="254" width="10" height="10" rx="2" fill="#f3e8ff" stroke="#c084fc" stroke-width="0.5"/>
+        <text x="516" y="263" font-family="'DM Mono',monospace" font-size="9" fill="#52525b">Slow (origin)</text>
+      </svg>
+    </div>
+  </div>
+
+  <p>
+    The goal is to serve as many requests as possible from the leftmost layers. A page served from the Full Route Cache at the edge never touches your server — it returns in single-digit milliseconds from a CDN node 30km from the user.
+  </p>
+
+  <div class="sep"></div>
+
+  <!-- ═══ SECTION 8 ═══ -->
+  <h2 id="checklist">Final audit checklist</h2>
+
+  <p>
+    Run through this list before every production deploy. Every item is a direct Lighthouse signal:
+  </p>
+
+  <ul class="checklist">
+    <li>
+      <div class="check-icon">
+        <svg viewBox="0 0 10 10" fill="none" stroke="#009a74" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1.5,5 4,7.5 8.5,2.5"/></svg>
+      </div>
+      <span>LCP image has <code>priority</code> prop — no lazy loading on above-the-fold images</span>
+    </li>
+    <li>
+      <div class="check-icon">
+        <svg viewBox="0 0 10 10" fill="none" stroke="#009a74" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1.5,5 4,7.5 8.5,2.5"/></svg>
+      </div>
+      <span>All <code>&lt;Image&gt;</code> components have a correct <code>sizes</code> attribute (not missing, not <code>100vw</code> on non-full-width images)</span>
+    </li>
+    <li>
+      <div class="check-icon">
+        <svg viewBox="0 0 10 10" fill="none" stroke="#009a74" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1.5,5 4,7.5 8.5,2.5"/></svg>
+      </div>
+      <span>AVIF + WebP formats enabled in <code>next.config.ts</code></span>
+    </li>
+    <li>
+      <div class="check-icon">
+        <svg viewBox="0 0 10 10" fill="none" stroke="#009a74" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1.5,5 4,7.5 8.5,2.5"/></svg>
+      </div>
+      <span>No data fetching in Client Components that could move to Server Components</span>
+    </li>
+    <li>
+      <div class="check-icon">
+        <svg viewBox="0 0 10 10" fill="none" stroke="#009a74" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1.5,5 4,7.5 8.5,2.5"/></svg>
+      </div>
+      <span>Heavy libraries (chart libs, rich text editors, PDF renderers) loaded with <code>dynamic()</code></span>
+    </li>
+    <li>
+      <div class="check-icon">
+        <svg viewBox="0 0 10 10" fill="none" stroke="#009a74" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1.5,5 4,7.5 8.5,2.5"/></svg>
+      </div>
+      <span>Fonts loaded via <code>next/font</code> — no external Google Fonts <code>&lt;link&gt;</code> in <code>&lt;head&gt;</code></span>
+    </li>
+    <li>
+      <div class="check-icon">
+        <svg viewBox="0 0 10 10" fill="none" stroke="#009a74" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1.5,5 4,7.5 8.5,2.5"/></svg>
+      </div>
+      <span>All images have explicit <code>width</code> and <code>height</code> or use <code>fill</code> with an aspect-ratio container</span>
+    </li>
+    <li>
+      <div class="check-icon">
+        <svg viewBox="0 0 10 10" fill="none" stroke="#009a74" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1.5,5 4,7.5 8.5,2.5"/></svg>
+      </div>
+      <span>Confirmed zero Lighthouse-reported render-blocking resources</span>
+    </li>
+    <li>
+      <div class="check-icon">
+        <svg viewBox="0 0 10 10" fill="none" stroke="#009a74" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1.5,5 4,7.5 8.5,2.5"/></svg>
+      </div>
+      <span>Semantic HTML used throughout — heading hierarchy, landmark elements, alt text on every image</span>
+    </li>
+    <li>
+      <div class="check-icon">
+        <svg viewBox="0 0 10 10" fill="none" stroke="#009a74" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1.5,5 4,7.5 8.5,2.5"/></svg>
+      </div>
+      <span>Static pages use Full Route Cache; dynamic pages use ISR with the shortest <code>revalidate</code> that makes sense</span>
+    </li>
+    <li>
+      <div class="check-icon">
+        <svg viewBox="0 0 10 10" fill="none" stroke="#009a74" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1.5,5 4,7.5 8.5,2.5"/></svg>
+      </div>
+      <span>Bundle analyzer run — no library over 50kb in the critical-path JS chunk</span>
+    </li>
+    <li>
+      <div class="check-icon">
+        <svg viewBox="0 0 10 10" fill="none" stroke="#009a74" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1.5,5 4,7.5 8.5,2.5"/></svg>
+      </div>
+      <span>Verified with Lighthouse in an incognito window — not the DevTools audit (different throttling)</span>
+    </li>
+  </ul>
+
+  <!-- ── CLOSING ── -->
+  <div class="sep"></div>
+
+  <p>
+    A perfect Lighthouse score is an outcome, not a goal. The goal is a site that feels instant, works on every device, and respects your users' bandwidth. The score just proves you got there. With Next.js 15's RSC model, <code>next/image</code>, <code>next/font</code>, and the layered caching system, the tools have never been better. The strategy above got a real production Next.js app from a 71 to a 100 in a single sprint. It'll do the same for yours.
+  </p>
+
+  <!-- ── AUTHOR CARD ── -->
+  <div class="author-card">
+    <div class="author-avatar">ZH</div>
+    <div class="author-info">
+      <h4>Zubair Hussain</h4>
+      <p>
+        Full-stack developer &amp; co-founder of Xovato — a digital agency based in Hyderabad, Pakistan. I build performant web applications with the MERN stack, Next.js, and AI integrations for clients in the US and Australia.
+      </p>
+      <a href="mailto:zovatotech@gmail.com">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+        thezubairh@gmail.com 
+      </a>
+    </div>
+  </div>
+
+</article>
+
+<script>
+  // Progress bar
+  window.addEventListener('scroll', () => {
+    const max = document.documentElement.scrollHeight - window.innerHeight;
+    document.getElementById('progress').style.width = (window.scrollY / max * 100) + '%';
+  });
+
+  // Animate score rings on load
+  window.addEventListener('load', () => {
+    const rings = document.querySelectorAll('.ring-fill');
+    setTimeout(() => {
+      rings.forEach(r => { r.style.strokeDashoffset = '0'; });
+    }, 300);
+  });
+</script>
+</body>
+</html>
